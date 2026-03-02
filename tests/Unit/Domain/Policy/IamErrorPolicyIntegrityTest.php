@@ -58,7 +58,7 @@ final class IamErrorPolicyIntegrityTest extends TestCase
         $mapping = $policy->mapping();
 
         $enumValues = array_map(
-            fn($case) => $case->getValue(),
+            fn ($case) => $case->getValue(),
             IamErrorCodeEnum::cases()
         );
 
@@ -89,6 +89,52 @@ final class IamErrorPolicyIntegrityTest extends TestCase
                     'Category "%s" is empty. If intentional, document explicitly.',
                     $category
                 )
+            );
+        }
+    }
+
+    public function test_all_enum_cases_are_mapped(): void
+    {
+        $policy = IamErrorPolicy::instance();
+        $mapping = $policy->mapping();
+
+        $mapped = [];
+
+        foreach ($mapping as $codes) {
+            foreach ($codes as $code) {
+                $mapped[] = $code;
+            }
+        }
+
+        $enumValues = array_map(
+            fn ($case) => $case->getValue(),
+            IamErrorCodeEnum::cases()
+        );
+
+        sort($mapped);
+        sort($enumValues);
+
+        $this->assertSame(
+            $enumValues,
+            $mapped,
+            'Every IamErrorCodeEnum case must be mapped exactly once in policy.'
+        );
+    }
+
+    public function test_no_unused_categories_in_policy(): void
+    {
+        $policy = IamErrorPolicy::instance();
+        $mapping = $policy->mapping();
+
+        $enumValues = array_map(
+            fn ($case) => $case->getValue(),
+            IamErrorCodeEnum::cases()
+        );
+
+        foreach ($mapping as $category => $codes) {
+            $this->assertNotEmpty(
+                $codes,
+                sprintf('Category "%s" exists in policy but has no error codes.', $category)
             );
         }
     }
