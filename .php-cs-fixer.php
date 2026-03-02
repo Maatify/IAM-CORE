@@ -23,7 +23,7 @@ $finder = Finder::create()
     ->ignoreDotFiles(true)
     ->ignoreVCS(true);
 
-return new Config()
+return (new Config())
     ->setRiskyAllowed(true)
     ->setRules([
         '@PSR12' => true,
