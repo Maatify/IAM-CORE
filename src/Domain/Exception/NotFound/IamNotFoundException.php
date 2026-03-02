@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Maatify\Iam\Domain\Exception\Authentication;
+namespace Maatify\Iam\Domain\Exception\NotFound;
 
 use Maatify\Exceptions\Contracts\ErrorCodeInterface;
-use Maatify\Exceptions\Exception\Authentication\AuthenticationMaatifyException;
+use Maatify\Exceptions\Exception\NotFound\NotFoundMaatifyException;
 use Maatify\Iam\Domain\Policy\IamErrorPolicy;
 
-abstract class IamAuthenticationException extends AuthenticationMaatifyException
+abstract class IamNotFoundException extends NotFoundMaatifyException
 {
     public function __construct(
         string $message = '',

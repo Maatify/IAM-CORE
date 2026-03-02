@@ -9,7 +9,7 @@ use Maatify\Exceptions\Contracts\ErrorCodeInterface;
 enum IamErrorCodeEnum: string implements ErrorCodeInterface
 {
     // ================================
-    // UNAUTHORIZED
+    // AUTHENTICATION (401)
     // ================================
     case INVALID_CREDENTIALS = 'INVALID_CREDENTIALS';
     case INVALID_TOKEN = 'INVALID_TOKEN';
@@ -17,27 +17,27 @@ enum IamErrorCodeEnum: string implements ErrorCodeInterface
     case REFRESH_TOKEN_REUSED = 'REFRESH_TOKEN_REUSED';
 
     // ================================
-    // FORBIDDEN
+    // AUTHORIZATION / SECURITY (403)
     // ================================
     case ACTOR_SUSPENDED = 'ACTOR_SUSPENDED';
     case TENANT_SUSPENDED = 'TENANT_SUSPENDED';
     case CLIENT_NOT_ALLOWED = 'CLIENT_NOT_ALLOWED';
 
     // ================================
-    // NOT FOUND
+    // NOT FOUND (404)
     // ================================
     case ACTOR_NOT_FOUND = 'ACTOR_NOT_FOUND';
     case TENANT_NOT_FOUND = 'TENANT_NOT_FOUND';
     case SESSION_NOT_FOUND = 'SESSION_NOT_FOUND';
 
     // ================================
-    // CONFLICT
+    // CONFLICT (409)
     // ================================
     case ACTOR_ALREADY_EXISTS = 'ACTOR_ALREADY_EXISTS';
     case SESSION_ALREADY_REVOKED = 'SESSION_ALREADY_REVOKED';
 
     // ================================
-    // SYSTEM
+    // SYSTEM (500)
     // ================================
     case TOKEN_SIGNING_FAILED = 'TOKEN_SIGNING_FAILED';
     case CRYPTO_FAILURE = 'CRYPTO_FAILURE';

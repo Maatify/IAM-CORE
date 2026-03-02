@@ -1,0 +1,16 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Maatify\Iam\Domain\Exception\NotFound;
+
+use Maatify\Exceptions\Contracts\ErrorCodeInterface;
+use Maatify\Iam\Domain\Enum\IamErrorCodeEnum;
+
+final class SessionNotFoundException extends IamNotFoundException
+{
+    protected function defaultErrorCode(): ErrorCodeInterface
+    {
+        return IamErrorCodeEnum::SESSION_NOT_FOUND;
+    }
+}

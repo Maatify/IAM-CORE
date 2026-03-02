@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Maatify\Iam\Domain\Exception\Authentication;
+namespace Maatify\Iam\Domain\Exception\Conflict;
 
 use Maatify\Exceptions\Contracts\ErrorCodeInterface;
-use Maatify\Exceptions\Exception\Authentication\AuthenticationMaatifyException;
+use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
 use Maatify\Iam\Domain\Policy\IamErrorPolicy;
 
-abstract class IamAuthenticationException extends AuthenticationMaatifyException
+abstract class IamConflictException extends ConflictMaatifyException
 {
     public function __construct(
         string $message = '',

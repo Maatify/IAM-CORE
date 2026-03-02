@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Maatify\Iam\Domain\Exception\Authentication;
+namespace Maatify\Iam\Domain\Exception;
 
 use Maatify\Exceptions\Contracts\ErrorCodeInterface;
-use Maatify\Exceptions\Exception\Authentication\AuthenticationMaatifyException;
+use Maatify\Exceptions\Exception\System\SystemMaatifyException;
 use Maatify\Iam\Domain\Policy\IamErrorPolicy;
 
-abstract class IamAuthenticationException extends AuthenticationMaatifyException
+abstract class IamSystemException extends SystemMaatifyException
 {
     public function __construct(
         string $message = '',
@@ -17,11 +17,11 @@ abstract class IamAuthenticationException extends AuthenticationMaatifyException
         ?ErrorCodeInterface $errorCodeOverride = null
     ) {
         parent::__construct(
-            message: $message,
-            code: $code,
-            previous: $previous,
+            message          : $message,
+            code             : $code,
+            previous         : $previous,
             errorCodeOverride: $errorCodeOverride,
-            policy: IamErrorPolicy::instance()
+            policy           : IamErrorPolicy::instance()
         );
     }
 }
