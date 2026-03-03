@@ -29,7 +29,8 @@
   },
   "autoload": {
     "psr-4": {
-      "Maatify\\Iam\\": "src/"
+      "Maatify\\Iam\\": "src/",
+      "Maatify\\SharedCommon\\": "Modules/SharedCommon/"
     }
   },
   "autoload-dev": {
