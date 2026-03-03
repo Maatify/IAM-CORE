@@ -1,187 +1,227 @@
--- MAATIFY IAM v1
--- Engine: MySQL 5.7+ (SAFE BASELINE)
--- Status: LOCKED BASELINE
--- Notes:
---  - No CHECK constraints (MySQL 8 feature)
---  - No generated columns / functional indexes
---  - Multi-tenant isolation enforced at DB level (composite FKs)
+/* ===========================================================
+ * MAATIFY IAM v1 — SHARED DB SCHEMA (PREFIXED TABLES)
+ * -----------------------------------------------------------
+ * - No CREATE DATABASE
+ * - No DROP
+ * - No global SQL mode changes
+ * - Prefix isolation: iam_*
+ * =========================================================== */
 
-SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+/* ===========================================================
+ * 1) tenants
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_tenants (
+                                           id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                           `key` VARCHAR(64) NOT NULL,
+                                           name VARCHAR(128) NOT NULL,
+                                           status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                                           metadata_json JSON NULL,
+                                           primary_identifier_type VARCHAR(16) NOT NULL,
+                                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                           PRIMARY KEY (id),
+                                           UNIQUE KEY uq_iam_tenants_key (`key`),
+                                           CONSTRAINT chk_iam_tenants_status
+                                               CHECK (status IN ('ACTIVE', 'SUSPENDED')),
+                                           CONSTRAINT chk_iam_tenants_primary_identifier_type
+                                               CHECK (primary_identifier_type IN ('EMAIL', 'PHONE'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ------------------------------------------------------------
--- 1) Tenants
--- ------------------------------------------------------------
-CREATE TABLE iam_tenants (
-                             id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                             tenant_key    VARCHAR(64)      NOT NULL,   -- public stable key (e.g. "project_alpha")
-                             name          VARCHAR(190)     NOT NULL,
-                             status        VARCHAR(32)      NOT NULL DEFAULT 'ACTIVE', -- ACTIVE|SUSPENDED|DELETED
-                             metadata_json JSON            NULL,
-                             created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                             updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                             PRIMARY KEY (id),
-                             UNIQUE KEY uq_iam_tenants_tenant_key (tenant_key),
-                             KEY idx_iam_tenants_status (status)
-) ENGINE=InnoDB;
+/* ===========================================================
+ * 2) clients
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_clients (
+                                           id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                           tenant_id BIGINT UNSIGNED NOT NULL,
+                                           client_key VARCHAR(64) NOT NULL,
+                                           type VARCHAR(32) NOT NULL DEFAULT 'PUBLIC',
+                                           status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                           PRIMARY KEY (id),
+                                           UNIQUE KEY uq_iam_clients_tenant_client_key (tenant_id, client_key),
+                                           KEY idx_iam_clients_tenant_id (tenant_id),
+                                           CONSTRAINT fk_iam_clients_tenant
+                                               FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
+                                                   ON UPDATE RESTRICT ON DELETE RESTRICT,
+                                           CONSTRAINT chk_iam_clients_status
+                                               CHECK (status IN ('ACTIVE', 'SUSPENDED')),
+                                           CONSTRAINT chk_iam_clients_type
+                                               CHECK (type IN ('PUBLIC', 'CONFIDENTIAL', 'INTERNAL'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ------------------------------------------------------------
--- 2) Clients (per tenant)
--- ------------------------------------------------------------
-CREATE TABLE iam_clients (
-                             id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                             tenant_id     BIGINT UNSIGNED NOT NULL,
-                             client_key    VARCHAR(64)      NOT NULL,   -- e.g. "web_bff", "mobile_android"
-                             client_type   VARCHAR(32)      NOT NULL,   -- WEB|MOBILE|SERVICE
-                             status        VARCHAR(32)      NOT NULL DEFAULT 'ACTIVE',
-                             metadata_json JSON            NULL,
-                             created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                             updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                             PRIMARY KEY (id),
+/* ===========================================================
+ * 3) actors
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_actors (
+                                          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                          tenant_id BIGINT UNSIGNED NOT NULL,
+                                          actor_type VARCHAR(32) NOT NULL,
+                                          status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                                          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                          PRIMARY KEY (id),
+                                          KEY idx_iam_actors_tenant_type (tenant_id, actor_type),
+                                          KEY idx_iam_actors_tenant_status (tenant_id, status),
+                                          CONSTRAINT fk_iam_actors_tenant
+                                              FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
+                                                  ON UPDATE RESTRICT ON DELETE RESTRICT,
+                                          CONSTRAINT chk_iam_actors_status
+                                              CHECK (status IN ('ACTIVE', 'SUSPENDED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-                             CONSTRAINT fk_iam_clients_tenant
-                                 FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
-                                     ON DELETE RESTRICT ON UPDATE CASCADE,
+/* ===========================================================
+ * 4) actor_identifiers
+ *
+ * - Identifiers are NOT in actors
+ * - Blind index lookup_hash is deterministic HMAC (BINARY 32)
+ * - Unique:
+ *   (actor_id, identifier_type)
+ *   (tenant_id, actor_type, identifier_type, lookup_hash)
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_actor_identifiers (
+                                                     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                                     actor_id BIGINT UNSIGNED NOT NULL,
+                                                     tenant_id BIGINT UNSIGNED NOT NULL,
+                                                     actor_type VARCHAR(32) NOT NULL,
 
-                             UNIQUE KEY uq_iam_clients_tenant_client_key (tenant_id, client_key),
-                             KEY idx_iam_clients_tenant_status (tenant_id, status),
-                             KEY idx_iam_clients_type (client_type),
+                                                     identifier_type VARCHAR(16) NOT NULL,
+                                                     lookup_hash BINARY(32) NOT NULL,
 
-    -- Composite FK target for sessions (prevents cross-tenant mixing)
-                             UNIQUE KEY uq_iam_clients_id_tenant (id, tenant_id)
-) ENGINE=InnoDB;
+                                                     cipher VARBINARY(512) NOT NULL,
+                                                     iv VARBINARY(32) NOT NULL,
+                                                     tag VARBINARY(32) NOT NULL,
+                                                     key_id VARCHAR(64) NOT NULL,
+                                                     algorithm VARCHAR(32) NOT NULL DEFAULT 'AES-256-GCM',
 
--- ------------------------------------------------------------
--- 3) Actors (identity only; NO business data)
--- ------------------------------------------------------------
-CREATE TABLE iam_actors (
-                            id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                            tenant_id      BIGINT UNSIGNED NOT NULL,
-                            actor_type     VARCHAR(32)      NOT NULL, -- customer|distributor|...
-                            status         VARCHAR(32)      NOT NULL DEFAULT 'ACTIVE', -- ACTIVE|SUSPENDED|DELETED
-                            password_hash  VARCHAR(255)     NOT NULL, -- Argon2id output
+                                                     is_verified TINYINT(1) NOT NULL DEFAULT 0,
 
-    -- Encrypted PII: Email (AES-GCM)
-                            email_cipher     BLOB           NULL,
-                            email_iv         VARBINARY(32)  NULL,
-                            email_tag        VARBINARY(32)  NULL,
-                            email_key_id     VARCHAR(64)    NULL,
-                            email_algorithm  VARCHAR(32)    NULL, -- e.g. "aes-256-gcm"
+                                                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    -- Encrypted PII: Phone (AES-GCM)
-                            phone_cipher     BLOB           NULL,
-                            phone_iv         VARBINARY(32)  NULL,
-                            phone_tag        VARBINARY(32)  NULL,
-                            phone_key_id     VARCHAR(64)    NULL,
-                            phone_algorithm  VARCHAR(32)    NULL,
+                                                     PRIMARY KEY (id),
 
-    -- Blind Index (HMAC-SHA256) - stored as 32 bytes
-                            email_lookup_hash VARBINARY(32) NULL,
-                            phone_lookup_hash VARBINARY(32) NULL,
+                                                     UNIQUE KEY uq_iam_actor_identifiers_actor_type (actor_id, identifier_type),
+                                                     UNIQUE KEY uq_iam_actor_identifiers_lookup (tenant_id, actor_type, identifier_type, lookup_hash),
 
-                            last_activity_at DATETIME       NULL,
+                                                     KEY idx_iam_actor_identifiers_actor (actor_id),
+                                                     KEY idx_iam_actor_identifiers_lookup_hash (lookup_hash),
+                                                     KEY idx_iam_actor_identifiers_tenant_actor (tenant_id, actor_type),
 
-                            created_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            updated_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                                     CONSTRAINT fk_iam_actor_identifiers_actor
+                                                         FOREIGN KEY (actor_id) REFERENCES iam_actors(id)
+                                                             ON UPDATE RESTRICT ON DELETE RESTRICT,
 
-                            PRIMARY KEY (id),
+                                                     CONSTRAINT fk_iam_actor_identifiers_tenant
+                                                         FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
+                                                             ON UPDATE RESTRICT ON DELETE RESTRICT,
 
-                            CONSTRAINT fk_iam_actors_tenant
-                                FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
-                                    ON DELETE RESTRICT ON UPDATE CASCADE,
+                                                     CONSTRAINT chk_iam_actor_identifiers_identifier_type
+                                                         CHECK (identifier_type IN ('EMAIL', 'PHONE')),
 
-    -- Prevent cross-tenant & cross-actor-type identity collision
-                            UNIQUE KEY uq_iam_actors_email_lookup (tenant_id, actor_type, email_lookup_hash),
-                            UNIQUE KEY uq_iam_actors_phone_lookup (tenant_id, actor_type, phone_lookup_hash),
+                                                     CONSTRAINT chk_iam_actor_identifiers_algorithm
+                                                         CHECK (algorithm IN ('AES-256-GCM')),
 
-                            KEY idx_iam_actors_tenant_type_status (tenant_id, actor_type, status),
-                            KEY idx_iam_actors_last_activity (last_activity_at),
+                                                     CONSTRAINT chk_iam_actor_identifiers_is_verified
+                                                         CHECK (is_verified IN (0, 1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-    -- Composite FK target for sessions (prevents cross-tenant mixing)
-                            UNIQUE KEY uq_iam_actors_id_tenant (id, tenant_id)
-) ENGINE=InnoDB;
+/* ===========================================================
+ * 5) actor_credentials
+ *
+ * - PASSWORD: secret_hash (Argon2id + Pepper)
+ * - OAUTH: provider_subject + provider_lookup_hash
+ * - Unique:
+ *   (actor_id, credential_type)
+ *   (credential_type, provider_lookup_hash)  -- when OAuth
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_actor_credentials (
+                                                     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                                     actor_id BIGINT UNSIGNED NOT NULL,
 
--- Note:
--- MySQL allows multiple NULLs in UNIQUE indexes.
--- This is OK: email_lookup_hash/phone_lookup_hash can be NULL until provided.
+                                                     credential_type VARCHAR(32) NOT NULL,
 
--- ------------------------------------------------------------
--- 4) Sessions (stateful refresh; revocation authority)
--- ------------------------------------------------------------
-CREATE TABLE iam_sessions (
-                              id            CHAR(36)         NOT NULL,  -- UUID string (portable)
-                              tenant_id     BIGINT UNSIGNED  NOT NULL,
-                              actor_id      BIGINT UNSIGNED  NOT NULL,
-                              client_id     BIGINT UNSIGNED  NOT NULL,
+                                                     secret_hash VARCHAR(255) NULL,         -- PASSWORD only
+                                                     provider_subject VARCHAR(191) NULL,    -- OAuth only
+                                                     provider_lookup_hash BINARY(32) NULL,  -- OAuth only (HMAC)
 
-    -- Refresh token hashes (SHA-256 raw bytes -> 32 bytes)
-                              refresh_token_hash       VARBINARY(32) NOT NULL,
-                              prev_refresh_token_hash  VARBINARY(32) NULL,
-                              prev_refresh_expires_at  DATETIME      NULL,
+                                                     metadata_json JSON NULL,
 
-                              device_id     VARCHAR(128)     NOT NULL, -- binding metadata (NOT trust factor)
-                              ip            VARBINARY(16)    NULL,     -- IPv4/IPv6 packed
-                              user_agent    VARCHAR(255)     NULL,
+                                                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-                              last_seen_at  DATETIME         NULL,
-                              expires_at    DATETIME         NOT NULL,
-                              revoked_at    DATETIME         NULL,
+                                                     PRIMARY KEY (id),
 
-                              created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                              updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                                     UNIQUE KEY uq_iam_actor_credentials_actor_type (actor_id, credential_type),
+                                                     UNIQUE KEY uq_iam_actor_credentials_provider (credential_type, provider_lookup_hash),
 
-                              PRIMARY KEY (id),
+                                                     KEY idx_iam_actor_credentials_actor (actor_id),
+                                                     KEY idx_iam_actor_credentials_type (credential_type),
 
-    -- Tenant FK
-                              CONSTRAINT fk_iam_sessions_tenant
-                                  FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
-                                      ON DELETE RESTRICT ON UPDATE CASCADE,
+                                                     CONSTRAINT fk_iam_actor_credentials_actor
+                                                         FOREIGN KEY (actor_id) REFERENCES iam_actors(id)
+                                                             ON UPDATE RESTRICT ON DELETE RESTRICT,
 
-    -- Composite FKs to prevent cross-tenant mixing
-                              CONSTRAINT fk_iam_sessions_actor_tenant
-                                  FOREIGN KEY (actor_id, tenant_id) REFERENCES iam_actors(id, tenant_id)
-                                      ON DELETE RESTRICT ON UPDATE CASCADE,
+                                                     CONSTRAINT chk_iam_actor_credentials_type
+                                                         CHECK (credential_type IN ('PASSWORD', 'OAUTH_GOOGLE', 'OAUTH_MICROSOFT')),
 
-                              CONSTRAINT fk_iam_sessions_client_tenant
-                                  FOREIGN KEY (client_id, tenant_id) REFERENCES iam_clients(id, tenant_id)
-                                      ON DELETE RESTRICT ON UPDATE CASCADE,
+                                                     CONSTRAINT chk_iam_actor_credentials_password_requires_hash
+                                                         CHECK (
+                                                             (credential_type = 'PASSWORD' AND secret_hash IS NOT NULL)
+                                                                 OR (credential_type <> 'PASSWORD' AND secret_hash IS NULL)
+                                                             ),
 
-    -- Token uniqueness prevents duplicates/replay collisions at storage layer
-                              UNIQUE KEY uq_iam_sessions_refresh_hash (refresh_token_hash),
+                                                     CONSTRAINT chk_iam_actor_credentials_oauth_fields
+                                                         CHECK (
+                                                             (credential_type IN ('OAUTH_GOOGLE', 'OAUTH_MICROSOFT') AND provider_subject IS NOT NULL AND provider_lookup_hash IS NOT NULL)
+                                                                 OR (credential_type = 'PASSWORD' AND provider_subject IS NULL AND provider_lookup_hash IS NULL)
+                                                             )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-                              KEY idx_iam_sessions_actor_active (actor_id, revoked_at),
-                              KEY idx_iam_sessions_tenant_actor (tenant_id, actor_id),
-                              KEY idx_iam_sessions_client (client_id),
-                              KEY idx_iam_sessions_expires (expires_at),
-                              KEY idx_iam_sessions_last_seen (last_seen_at)
-) ENGINE=InnoDB;
+/* ===========================================================
+ * 6) sessions
+ *
+ * id: UUID string (CHAR(36)) - spec says uuid
+ * refresh_token_hash: hashed only (BINARY 32) unique
+ * rotation: prev_refresh_token_hash + prev_refresh_expires_at
+ * revocation: revoked_at
+ * device-bound: device_id, ip, user_agent
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_sessions (
+                                            id CHAR(36) NOT NULL,                  -- UUID string
+                                            actor_id BIGINT UNSIGNED NOT NULL,
+                                            client_id BIGINT UNSIGNED NOT NULL,
 
--- ------------------------------------------------------------
--- 5) JWT Signing Keys (Public Metadata Only; private key NOT stored here)
--- Optional but recommended for lifecycle & JWKS management.
--- ------------------------------------------------------------
-CREATE TABLE iam_jwt_signing_keys (
-                                      id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                                      tenant_id    BIGINT UNSIGNED NOT NULL,
+                                            refresh_token_hash BINARY(32) NOT NULL,
+                                            prev_refresh_token_hash BINARY(32) NULL,
+                                            prev_refresh_expires_at DATETIME NULL,
 
-                                      kid          VARCHAR(64)      NOT NULL, -- key id exposed in JWT header & JWKS
-                                      status       VARCHAR(32)      NOT NULL, -- ACTIVE|VERIFY_ONLY|RETIRED
-                                      algorithm    VARCHAR(32)      NOT NULL DEFAULT 'EdDSA', -- EdDSA (Ed25519)
+                                            device_id VARCHAR(128) NOT NULL,
+                                            ip VARBINARY(16) NULL,                 -- packed IPv4/IPv6
+                                            user_agent VARCHAR(255) NULL,
 
-    -- Public key material (safe to store)
-                                      public_key   BLOB             NOT NULL,
+                                            last_seen_at DATETIME NULL,
+                                            expires_at DATETIME NOT NULL,
+                                            revoked_at DATETIME NULL,
 
-                                      activated_at DATETIME         NULL,
-                                      retired_at   DATETIME         NULL,
+                                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-                                      created_at   DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                      updated_at   DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                            PRIMARY KEY (id),
 
-                                      PRIMARY KEY (id),
+                                            UNIQUE KEY uq_iam_sessions_refresh_hash (refresh_token_hash),
 
-                                      CONSTRAINT fk_iam_jwt_keys_tenant
-                                          FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
-                                              ON DELETE RESTRICT ON UPDATE CASCADE,
+                                            KEY idx_iam_sessions_actor (actor_id),
+                                            KEY idx_iam_sessions_client (client_id),
+                                            KEY idx_iam_sessions_actor_revoked (actor_id, revoked_at),
+                                            KEY idx_iam_sessions_expires_at (expires_at),
+                                            KEY idx_iam_sessions_device (device_id),
 
-                                      UNIQUE KEY uq_iam_jwt_keys_tenant_kid (tenant_id, kid),
-                                      KEY idx_iam_jwt_keys_tenant_status (tenant_id, status)
-) ENGINE=InnoDB;
+                                            CONSTRAINT fk_iam_sessions_actor
+                                                FOREIGN KEY (actor_id) REFERENCES iam_actors(id)
+                                                    ON UPDATE RESTRICT ON DELETE RESTRICT,
+
+                                            CONSTRAINT fk_iam_sessions_client
+                                                FOREIGN KEY (client_id) REFERENCES iam_clients(id)
+                                                    ON UPDATE RESTRICT ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
