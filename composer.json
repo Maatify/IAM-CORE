@@ -30,7 +30,8 @@
   "autoload": {
     "psr-4": {
       "Maatify\\Iam\\": "src/",
-      "Maatify\\SharedCommon\\": "Modules/SharedCommon/"
+      "Maatify\\SharedCommon\\": "Modules/SharedCommon/",
+      "Maatify\\Crypto\\": "Modules/Crypto"
     }
   },
   "autoload-dev": {
