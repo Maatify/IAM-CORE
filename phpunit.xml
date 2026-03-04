@@ -1,23 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
-         cacheDirectory=".phpunit.cache"
-         executionOrder="depends,defects"
-         beStrictAboutOutputDuringTests="true"
-         failOnDeprecation="true"
-         failOnRisky="true"
-         failOnWarning="true"
-         colors="true">
+
+<!--
+    IAM-CORE PHPUnit Configuration
+    - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    - Strict execution
+    - Separate Unit / Integration suites
+    - Deterministic environment
+    - Compatible with CI MySQL service
+-->
+
+<phpunit
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
+
+        bootstrap="tests/bootstrap.php"
+        cacheDirectory=".phpunit.cache"
+
+        executionOrder="depends,defects"
+        beStrictAboutOutputDuringTests="true"
+        failOnDeprecation="true"
+        failOnRisky="true"
+        failOnWarning="true"
+
+        colors="true"
+>
+    <!-- requireCoverageMetadata="true" -->
+
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
+    <!-- Environment Enforcement                       -->
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
+    <php>
+        <env name="APP_ENV" value="testing"/>
+    </php>
+
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
+    <!-- Test Suites                                   -->
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
     <testsuites>
-        <testsuite name="default">
-            <directory>tests</directory>
+
+        <!-- Fast deterministic unit tests -->
+        <testsuite name="unit">
+            <directory suffix="Test.php">tests/Unit</directory>
         </testsuite>
+
+        <!-- Real MySQL integration tests -->
+        <testsuite name="integration">
+            <directory suffix="Test.php">tests/Integration</directory>
+        </testsuite>
+
     </testsuites>
+
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
+    <!-- Source Code Coverage Scope                    -->
+    <!-- - - - - - - - - - - - - - - - - - - - - - - - -->
     <source>
         <include>
             <directory>src</directory>
         </include>
     </source>
+
 </phpunit>
-<!-- requireCoverageMetadata="true" -->
