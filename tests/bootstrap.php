@@ -33,7 +33,7 @@ $defaults = [
     'DB_HOST'           => '127.0.0.1',
     'DB_NAME'           => 'iam_core_test',
     'DB_USER'           => 'root',
-    'DB_PASS'           => '',
+    'DB_PASS'           => 'root',
 
     // Blind-index / lookup HMAC secret
     'EMAIL_BLIND_INDEX_KEY' => 'test-blind-index-key-32-chars-long-!!',
