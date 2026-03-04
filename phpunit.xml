@@ -56,6 +56,7 @@
     <source>
         <include>
             <directory>src</directory>
+            <directory>Modules</directory>
         </include>
     </source>
 

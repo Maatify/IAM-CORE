@@ -11,7 +11,8 @@ final readonly class IdentifierCanonicalizer
     public function __construct(
         private EmailCanonicalizer $email,
         private PhoneCanonicalizer $phone,
-    ) {}
+    ) {
+    }
 
     public function canonicalize(
         IdentifierTypeEnum $type,

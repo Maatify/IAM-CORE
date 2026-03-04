@@ -13,8 +13,10 @@ final class LookupHmacTest extends TestCase
 {
     private function provider(string $secret): LookupSecretProviderInterface
     {
-        return new class($secret) implements LookupSecretProviderInterface {
-            public function __construct(private string $secret) {}
+        return new class ($secret) implements LookupSecretProviderInterface {
+            public function __construct(private string $secret)
+            {
+            }
             public function getSecret(): string
             {
                 return $this->secret;

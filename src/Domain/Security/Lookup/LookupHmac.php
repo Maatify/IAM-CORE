@@ -10,7 +10,8 @@ final readonly class LookupHmac implements LookupHmacInterface
 {
     public function __construct(
         private LookupSecretProviderInterface $secretProvider,
-    ) {}
+    ) {
+    }
 
     public function hash(string $canonical): string
     {

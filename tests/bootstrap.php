@@ -14,24 +14,38 @@
 declare(strict_types=1);
 
 use Dotenv\Dotenv;
+use Tests\Support\TestDatabaseManager;
 
 $rootPath = dirname(__DIR__);
 
-// Load .env.test if exists
+// ------------------------------------------------------------
+// 1) Load .env.test (preferred) then fallback to .env
+// ------------------------------------------------------------
 if (file_exists($rootPath . '/.env.test')) {
     Dotenv::createImmutable($rootPath, '.env.test')->safeLoad();
 }
 
-// Minimal deterministic defaults
+// ------------------------------------------------------------
+// 2) Minimal defaults for CI safety (do NOT rely on local secrets)
+// ------------------------------------------------------------
 $defaults = [
     'APP_ENV'           => 'testing',
     'DB_HOST'           => '127.0.0.1',
     'DB_NAME'           => 'iam_core_test',
     'DB_USER'           => 'root',
     'DB_PASS'           => '',
-    'IAM_LOOKUP_SECRET' => 'test-lookup-secret-32-chars-long!!!!',
+
+    // Blind-index / lookup HMAC secret
+    'EMAIL_BLIND_INDEX_KEY' => 'test-blind-index-key-32-chars-long-!!',
+
+    // Crypto keys (must be 32 bytes for AES-256-GCM)
+    'CRYPTO_ACTIVE_KEY_ID' => 'v1',
+    'CRYPTO_KEYS' => '[{"id":"v1","key":"12345678901234567890123456789012"}]',
 ];
 
+// ------------------------------------------------------------
+// 3) Sync $_ENV into putenv() (important for PDO / legacy libs)
+// ------------------------------------------------------------
 foreach ($defaults as $key => $value) {
     if (! isset($_ENV[$key])) {
         $_ENV[$key] = $value;
@@ -45,3 +59,8 @@ foreach ($_ENV as $key => $value) {
         putenv($key . '=' . (string)$value);
     }
 }
+
+// ------------------------------------------------------------
+// 4) Create tables once per test run
+// ------------------------------------------------------------
+TestDatabaseManager::migrate();

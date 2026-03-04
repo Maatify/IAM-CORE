@@ -11,39 +11,26 @@ jobs:
     name: Quality Checks (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
 
-    # -------------------------------------------------
-    # MySQL Service (Integration Test Database)
-    # -------------------------------------------------
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: iam_core_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-    # -------------------------------------------------
-    # Global Environment Variables (Testing Mode)
-    # -------------------------------------------------
-    env:
-      APP_ENV: testing
-      DB_HOST: 127.0.0.1
-      DB_PORT: 3306
-      DB_NAME: iam_core_test
-      DB_USER: root
-      DB_PASS: root
-      IAM_LOOKUP_SECRET: test-lookup-secret-32-chars-long!!!!
-
     strategy:
       fail-fast: false
       matrix:
         php: [ "8.2", "8.3", "8.4" ]
+
+    services:
+      # -------------------------------------------------
+      # MySQL Service (Integration Tests)
+      # -------------------------------------------------
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       # -------------------------------------------------
@@ -63,17 +50,7 @@ jobs:
           coverage: none
 
       # -------------------------------------------------
-      # 3) Wait for MySQL to Become Ready
-      # -------------------------------------------------
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -proot && break
-            sleep 2
-          done
-
-      # -------------------------------------------------
-      # 4) Cache Composer Dependencies
+      # 3) Cache Composer Dependencies
       # -------------------------------------------------
       - name: Cache Composer dependencies
         uses: actions/cache@v4
@@ -84,49 +61,76 @@ jobs:
             ${{ runner.os }}-composer-
 
       # -------------------------------------------------
-      # 5) Validate composer.json Structure
+      # 4) Validate composer.json Structure
       # -------------------------------------------------
       - name: Validate composer.json
         run: composer validate --strict
 
       # -------------------------------------------------
-      # 6) Install Project Dependencies
+      # 5) Install Project Dependencies
       # -------------------------------------------------
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
       # -------------------------------------------------
-      # 7) Verify Platform Requirements
+      # 6) Verify Platform Requirements
       # -------------------------------------------------
       - name: Check platform requirements
         run: composer check-platform-reqs
 
       # -------------------------------------------------
-      # 8) Security Audit (Fail on Vulnerabilities)
+      # 7) Security Audit (Fail on Vulnerabilities)
       # -------------------------------------------------
       - name: Composer Security Audit
         run: composer audit --format=plain
 
       # -------------------------------------------------
-      # 9) Optimize Autoload for Performance
+      # 8) Create Test Database (MySQL)
       # -------------------------------------------------
-      - name: Optimize autoload
-        run: composer dump-autoload --optimize
+      - name: Create test database
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASS: root
+          DB_NAME: iam_core_test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mysql-client
+          mysql --protocol=tcp -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
       # -------------------------------------------------
-      # 10) Run PHPUnit (Unit + Integration)
+      # 9) Run Unit + Integration Tests (PHPUnit)
       # -------------------------------------------------
       - name: Run PHPUnit
+        env:
+          APP_ENV: testing
+          APP_DEBUG: "false"
+          APP_TIMEZONE: Africa/Cairo
+
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: iam_core_test
+          DB_USER: root
+          DB_PASS: root
+
+          # Lookup HMAC secret (Blind-index key)
+          EMAIL_BLIND_INDEX_KEY: "test-blind-index-key-32-chars-long-!!"
+
+          # Crypto key ring (32 bytes key material)
+          CRYPTO_ACTIVE_KEY_ID: v1
+          CRYPTO_KEYS: '[{"id":"v1","key":"12345678901234567890123456789012"}]'
+
         run: composer test
 
       # -------------------------------------------------
-      # 11) Static Analysis (PHPStan Level Max)
+      # 10) Static Analysis (PHPStan)
       # -------------------------------------------------
       - name: Run PHPStan
         run: composer analyse
 
       # -------------------------------------------------
-      # 12) Syntax Lint Check
+      # 11) Syntax Lint Check
       # -------------------------------------------------
       - name: Lint PHP files
         run: |
