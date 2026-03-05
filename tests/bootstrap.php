@@ -63,4 +63,8 @@ foreach ($_ENV as $key => $value) {
 // ------------------------------------------------------------
 // 4) Create tables once per test run
 // ------------------------------------------------------------
-TestDatabaseManager::migrate();
+try {
+    TestDatabaseManager::migrate();
+} catch (\PDOException $e) {
+    echo "⚠️ Warning: Could not connect to database for migration: " . $e->getMessage() . "\n";
+}

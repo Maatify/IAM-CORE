@@ -25,7 +25,6 @@ use Maatify\Iam\Domain\Security\Lookup\LookupHmac;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoActorIdentifierRepository;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoActorRepository;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoTransactionManager;
-use Tests\Support\Crypto\TestCryptoContextProvider;
 use Tests\Support\Security\EnvLookupSecretProvider;
 use Tests\Support\TestDatabaseManager;
 
@@ -97,7 +96,6 @@ final class CreateActorServiceTest extends IntegrationTestCase
             $canonicalizer,
             $lookupHmac,
             $crypto,
-            new TestCryptoContextProvider(),
             new PdoTransactionManager($pdo)
         );
 
