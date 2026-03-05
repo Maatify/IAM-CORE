@@ -15,7 +15,6 @@ declare(strict_types=1);
 
 namespace Maatify\Iam\Application\Service;
 
-use Maatify\Crypto\Contract\CryptoContextProviderInterface;
 use Maatify\Crypto\DX\CryptoProvider;
 use Maatify\Iam\Application\Contract\TransactionManagerInterface;
 use Maatify\Iam\Domain\DTO\CreateActorCommandDTO;
@@ -37,7 +36,6 @@ final readonly class CreateActorService
 
         // Crypto integration (required by project)
         private CryptoProvider $crypto,
-        private CryptoContextProviderInterface $cryptoContext,
         private TransactionManagerInterface $transaction,
     ) {
     }
@@ -62,12 +60,7 @@ final readonly class CreateActorService
 
         return $this->transaction->transactional(function () use ($command, $lookupHash, $canonical) {
 
-            $context = match ($command->identifierType) {
-                IdentifierTypeEnum::EMAIL => $this->cryptoContext->identifierEmail(),
-                IdentifierTypeEnum::PHONE => $this->cryptoContext->identifierPhone(),
-            };
-
-            $service = $this->crypto->context($context);
+            $service = $this->crypto->context('IDENTIFIER_ENC');
             $encrypted = $service->encrypt($canonical);
 
             $cipher = $encrypted['result']->cipher;
