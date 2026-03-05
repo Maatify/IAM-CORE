@@ -18,6 +18,7 @@
     "psr/http-server-handler": "^1.0",
     "psr/http-server-middleware": "^1.0",
     "ramsey/uuid": "^4.9",
+    "respect/validation": "^2.4",
     "slim/psr7": "^1.8",
     "slim/slim": "^4.15",
     "vlucas/phpdotenv": "^5.6"
@@ -31,7 +32,8 @@
     "psr-4": {
       "Maatify\\Iam\\": "src/",
       "Maatify\\SharedCommon\\": "Modules/SharedCommon/",
-      "Maatify\\Crypto\\": "Modules/Crypto"
+      "Maatify\\Crypto\\": "Modules/Crypto",
+      "Maatify\\Validation\\": "Modules/Validation"
     }
   },
   "autoload-dev": {
