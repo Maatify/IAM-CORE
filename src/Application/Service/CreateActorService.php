@@ -60,7 +60,7 @@ final readonly class CreateActorService
 
         return $this->transaction->transactional(function () use ($command, $lookupHash, $canonical) {
 
-            $service = $this->crypto->context('IDENTIFIER_ENC');
+            $service = $this->crypto->context('IDENTIFIER_ENC:v1');
             $encrypted = $service->encrypt($canonical);
 
             $cipher = $encrypted['result']->cipher;
