@@ -22,8 +22,7 @@ final readonly class TrustedNetworkMatcher implements TrustedNetworkMatcherInter
      */
     public function __construct(
         private array $rules
-    )
-    {
+    ) {
     }
 
     public function isTrusted(string $ip): bool

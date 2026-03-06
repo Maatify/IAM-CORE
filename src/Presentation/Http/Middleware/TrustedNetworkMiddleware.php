@@ -27,15 +27,13 @@ final readonly class TrustedNetworkMiddleware implements MiddlewareInterface
     public function __construct(
         private TrustedNetworkMatcherInterface $matcher,
         private ResponseFactoryInterface $responseFactory,
-    )
-    {
+    ) {
     }
 
     public function process(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler
-    ): ResponseInterface
-    {
+    ): ResponseInterface {
         $ip = (string)($request->getServerParams()['REMOTE_ADDR'] ?? '');
 
         if (! $this->matcher->isTrusted($ip)) {

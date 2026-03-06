@@ -27,6 +27,18 @@ final readonly class Settings
         public string $version,
         public array $trustedIps,
 
+        /* ─────────────────────────────
+         * Crypto
+         * ───────────────────────────── */
+        public string $cryptoKeysJson,
+        public string $cryptoActiveKeyId,
+
+        /* ─────────────────────────────
+     * Security / Passwords
+     * ───────────────────────────── */
+        public string $passwordPeppers,
+        public string $passwordActivePepperId,
+        public string $passwordArgon2Options,
     ) {
     }
 
@@ -40,6 +52,11 @@ final readonly class Settings
             debug  : filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOL),
             version: $_ENV['APP_VERSION'] ?? '1.0.0',
             trustedIps : $trustedIps,
+            cryptoKeysJson: $_ENV['CRYPTO_KEYS'] ?? '[]',
+            cryptoActiveKeyId: $_ENV['CRYPTO_ACTIVE_KEY_ID'] ?? 'v1',
+            passwordPeppers: $_ENV['PASSWORD_PEPPERS'] ?? '',
+            passwordActivePepperId: $_ENV['PASSWORD_ACTIVE_PEPPER_ID'] ?? '',
+            passwordArgon2Options: $_ENV['PASSWORD_ARGON2_OPTIONS'] ?? '',
         );
     }
 
@@ -53,7 +70,7 @@ final readonly class Settings
         }
 
         $parts = array_map('trim', explode(',', $csv));
-        $parts = array_values(array_filter($parts, static fn(string $v): bool => $v !== ''));
+        $parts = array_values(array_filter($parts, static fn (string $v): bool => $v !== ''));
 
         return $parts;
     }
