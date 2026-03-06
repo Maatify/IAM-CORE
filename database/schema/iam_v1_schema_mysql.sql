@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS iam_tenants (
                                                CHECK (primary_identifier_type IN ('EMAIL', 'PHONE'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
 /* ===========================================================
  * 2) clients
  * =========================================================== */
@@ -38,17 +39,24 @@ CREATE TABLE IF NOT EXISTS iam_clients (
                                            status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
                                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
                                            PRIMARY KEY (id),
+
                                            UNIQUE KEY uq_iam_clients_tenant_client_key (tenant_id, client_key),
+
                                            KEY idx_iam_clients_tenant_id (tenant_id),
+
                                            CONSTRAINT fk_iam_clients_tenant
                                                FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
                                                    ON UPDATE RESTRICT ON DELETE RESTRICT,
+
                                            CONSTRAINT chk_iam_clients_status
                                                CHECK (status IN ('ACTIVE', 'SUSPENDED')),
+
                                            CONSTRAINT chk_iam_clients_type
                                                CHECK (type IN ('PUBLIC', 'CONFIDENTIAL', 'INTERNAL'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 /* ===========================================================
  * 3) actors
@@ -56,19 +64,33 @@ CREATE TABLE IF NOT EXISTS iam_clients (
 CREATE TABLE IF NOT EXISTS iam_actors (
                                           id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                                           tenant_id BIGINT UNSIGNED NOT NULL,
+
                                           actor_type VARCHAR(32) NOT NULL,
+
+    /* Optional business classification */
+                                          customer_mode VARCHAR(32) NULL,
+
                                           status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+
+    /* Extensible attributes */
+                                          metadata_json JSON NULL,
+
                                           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
                                           PRIMARY KEY (id),
+
                                           KEY idx_iam_actors_tenant_type (tenant_id, actor_type),
                                           KEY idx_iam_actors_tenant_status (tenant_id, status),
+
                                           CONSTRAINT fk_iam_actors_tenant
                                               FOREIGN KEY (tenant_id) REFERENCES iam_tenants(id)
                                                   ON UPDATE RESTRICT ON DELETE RESTRICT,
+
                                           CONSTRAINT chk_iam_actors_status
                                               CHECK (status IN ('ACTIVE', 'SUSPENDED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 /* ===========================================================
  * 4) actor_identifiers
@@ -81,6 +103,7 @@ CREATE TABLE IF NOT EXISTS iam_actors (
  * =========================================================== */
 CREATE TABLE IF NOT EXISTS iam_actor_identifiers (
                                                      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
                                                      actor_id BIGINT UNSIGNED NOT NULL,
                                                      tenant_id BIGINT UNSIGNED NOT NULL,
                                                      actor_type VARCHAR(32) NOT NULL,
@@ -102,7 +125,9 @@ CREATE TABLE IF NOT EXISTS iam_actor_identifiers (
                                                      PRIMARY KEY (id),
 
                                                      UNIQUE KEY uq_iam_actor_identifiers_actor_type (actor_id, identifier_type),
-                                                     UNIQUE KEY uq_iam_actor_identifiers_lookup (tenant_id, actor_type, identifier_type, lookup_hash),
+
+                                                     UNIQUE KEY uq_iam_actor_identifiers_lookup
+                                                         (tenant_id, actor_type, identifier_type, lookup_hash),
 
                                                      KEY idx_iam_actor_identifiers_actor (actor_id),
                                                      KEY idx_iam_actor_identifiers_lookup_hash (lookup_hash),
@@ -124,7 +149,9 @@ CREATE TABLE IF NOT EXISTS iam_actor_identifiers (
 
                                                      CONSTRAINT chk_iam_actor_identifiers_is_verified
                                                          CHECK (is_verified IN (0, 1))
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 /* ===========================================================
  * 5) actor_credentials
@@ -137,13 +164,18 @@ CREATE TABLE IF NOT EXISTS iam_actor_identifiers (
  * =========================================================== */
 CREATE TABLE IF NOT EXISTS iam_actor_credentials (
                                                      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
                                                      actor_id BIGINT UNSIGNED NOT NULL,
 
                                                      credential_type VARCHAR(32) NOT NULL,
 
-                                                     secret_hash VARCHAR(255) NULL,         -- PASSWORD only
-                                                     provider_subject VARCHAR(191) NULL,    -- OAuth only
-                                                     provider_lookup_hash BINARY(32) NULL,  -- OAuth only (HMAC)
+    /* PASSWORD credential */
+                                                     secret_hash VARCHAR(255) NULL,
+                                                     pepper_id VARCHAR(32) NULL,
+
+    /* OAuth credential */
+                                                     provider_subject VARCHAR(191) NULL,
+                                                     provider_lookup_hash BINARY(32) NULL,
 
                                                      metadata_json JSON NULL,
 
@@ -152,8 +184,11 @@ CREATE TABLE IF NOT EXISTS iam_actor_credentials (
 
                                                      PRIMARY KEY (id),
 
-                                                     UNIQUE KEY uq_iam_actor_credentials_actor_type (actor_id, credential_type),
-                                                     UNIQUE KEY uq_iam_actor_credentials_provider (credential_type, provider_lookup_hash),
+                                                     UNIQUE KEY uq_iam_actor_credentials_actor_type
+                                                         (actor_id, credential_type),
+
+                                                     UNIQUE KEY uq_iam_actor_credentials_provider
+                                                         (credential_type, provider_lookup_hash),
 
                                                      KEY idx_iam_actor_credentials_actor (actor_id),
                                                      KEY idx_iam_actor_credentials_type (credential_type),
@@ -167,15 +202,26 @@ CREATE TABLE IF NOT EXISTS iam_actor_credentials (
 
                                                      CONSTRAINT chk_iam_actor_credentials_password_requires_hash
                                                          CHECK (
-                                                             (credential_type = 'PASSWORD' AND secret_hash IS NOT NULL)
-                                                                 OR (credential_type <> 'PASSWORD' AND secret_hash IS NULL)
+                                                             (credential_type = 'PASSWORD'
+                                                                 AND secret_hash IS NOT NULL
+                                                                 AND pepper_id IS NOT NULL)
+                                                                 OR
+                                                             (credential_type <> 'PASSWORD'
+                                                                 AND secret_hash IS NULL
+                                                                 AND pepper_id IS NULL)
                                                              ),
 
                                                      CONSTRAINT chk_iam_actor_credentials_oauth_fields
                                                          CHECK (
-                                                             (credential_type IN ('OAUTH_GOOGLE', 'OAUTH_MICROSOFT') AND provider_subject IS NOT NULL AND provider_lookup_hash IS NOT NULL)
-                                                                 OR (credential_type = 'PASSWORD' AND provider_subject IS NULL AND provider_lookup_hash IS NULL)
+                                                             (credential_type IN ('OAUTH_GOOGLE', 'OAUTH_MICROSOFT')
+                                                                 AND provider_subject IS NOT NULL
+                                                                 AND provider_lookup_hash IS NOT NULL)
+                                                                 OR
+                                                             (credential_type = 'PASSWORD'
+                                                                 AND provider_subject IS NULL
+                                                                 AND provider_lookup_hash IS NULL)
                                                              )
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /* ===========================================================
@@ -188,7 +234,8 @@ CREATE TABLE IF NOT EXISTS iam_actor_credentials (
  * device-bound: device_id, ip, user_agent
  * =========================================================== */
 CREATE TABLE IF NOT EXISTS iam_sessions (
-                                            id CHAR(36) NOT NULL,                  -- UUID string
+                                            id CHAR(36) NOT NULL,
+
                                             actor_id BIGINT UNSIGNED NOT NULL,
                                             client_id BIGINT UNSIGNED NOT NULL,
 
@@ -224,4 +271,5 @@ CREATE TABLE IF NOT EXISTS iam_sessions (
                                             CONSTRAINT fk_iam_sessions_client
                                                 FOREIGN KEY (client_id) REFERENCES iam_clients(id)
                                                     ON UPDATE RESTRICT ON DELETE RESTRICT
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
