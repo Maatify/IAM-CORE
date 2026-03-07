@@ -12,6 +12,7 @@
     "firebase/php-jwt": "^7.0",
     "maatify/exceptions": "^1.1",
     "maatify/psr-logger": "^1.0",
+    "maatify/validation": "^1.0",
     "middlewares/trailing-slash": "^2.1",
     "php-di/php-di": "^7.1",
     "psr/http-message": "^2.0",
@@ -32,8 +33,7 @@
     "psr-4": {
       "Maatify\\Iam\\": "src/",
       "Maatify\\SharedCommon\\": "Modules/SharedCommon/",
-      "Maatify\\Crypto\\": "Modules/Crypto",
-      "Maatify\\Validation\\": "Modules/Validation"
+      "Maatify\\Crypto\\": "Modules/Crypto"
     }
   },
   "autoload-dev": {
