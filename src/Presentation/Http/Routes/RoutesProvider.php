@@ -34,8 +34,10 @@ final class RoutesProvider
 
         // Internal APIs (network-trusted only)
         $app->group('/internal', function (RouteCollectorProxy $group): void {
-            // TODO: POST /internal/actors/provision هنا لاحقًا
-            // $group->post('/actors/provision', ProvisionActorController::class);
+            $group->post(
+                '/actors',
+                \Maatify\Iam\Presentation\Http\Controllers\ProvisionActorController::class
+            );
         })->add(TrustedNetworkMiddleware::class);
     }
 }
