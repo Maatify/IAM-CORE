@@ -17,6 +17,9 @@ namespace Maatify\Iam\Bootstrap\Container;
 
 use Maatify\Iam\Application\Adapter\PasswordPepperEnvAdapter;
 use Maatify\Iam\Bootstrap\Settings;
+use Maatify\Iam\Domain\Repository\ActorCredentialRepositoryInterface;
+use Maatify\Iam\Domain\Security\Credential\CredentialStrategyInterface;
+use Maatify\Iam\Domain\Security\Credential\PasswordCredentialStrategy;
 use Maatify\Iam\Domain\Security\Password\PasswordPepperRing;
 use Maatify\Iam\Domain\Security\Password\PasswordPepperRingConfig;
 use Maatify\Iam\Domain\Service\PasswordService;
@@ -33,7 +36,7 @@ final class SecurityContainerConfig implements ContainerModule
 
         $container->set(
             PasswordPepperRing::class,
-            fn() => $pepperConfig->ring()
+            fn () => $pepperConfig->ring()
         );
 
         $container->set(
@@ -55,6 +58,17 @@ final class SecurityContainerConfig implements ContainerModule
                     $passwordPepperRing,
                     $options
                 );
+            }
+        );
+
+        $container->set(
+            CredentialStrategyInterface::class,
+            function (ContainerInterface $c) {
+                /** @var ActorCredentialRepositoryInterface $repo */
+                $repo = $c->get(ActorCredentialRepositoryInterface::class);
+                /** @var PasswordService $passwordService */
+                $passwordService = $c->get(PasswordService::class);
+                return new PasswordCredentialStrategy($repo, $passwordService);
             }
         );
     }

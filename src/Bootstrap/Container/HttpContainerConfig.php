@@ -32,7 +32,7 @@ final class HttpContainerConfig implements ContainerModule
     {
         $container->set(
             ErrorSerializer::class,
-            fn() => new ErrorSerializer(
+            fn () => new ErrorSerializer(
                 new DefaultThrowableToError(),
                 new ProblemDetailsFormatter()
             )
@@ -40,7 +40,7 @@ final class HttpContainerConfig implements ContainerModule
 
         $container->set(
             ResponseFactoryInterface::class,
-            fn() => new ResponseFactory()
+            fn () => new ResponseFactory()
         );
 
         $container->set(

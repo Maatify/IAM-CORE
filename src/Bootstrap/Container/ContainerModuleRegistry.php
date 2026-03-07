@@ -29,6 +29,7 @@ final class ContainerModuleRegistry
             new HttpContainerConfig(),
             new CryptoContainerConfig(),
             new SecurityContainerConfig(),
+            new RepositoryContainerConfig(),
         ];
     }
 

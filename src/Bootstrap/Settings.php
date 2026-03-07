@@ -34,11 +34,20 @@ final readonly class Settings
         public string $cryptoActiveKeyId,
 
         /* ─────────────────────────────
-     * Security / Passwords
-     * ───────────────────────────── */
+         * Security / Passwords
+         * ───────────────────────────── */
         public string $passwordPeppers,
         public string $passwordActivePepperId,
         public string $passwordArgon2Options,
+
+        /* ─────────────────────────────
+         * Database Connections
+         * ───────────────────────────── */
+        public string $dbHost,
+        public string $dbPort,
+        public string $dbName,
+        public string $dbUser,
+        public string $dbPassword,
     ) {
     }
 
@@ -57,6 +66,11 @@ final readonly class Settings
             passwordPeppers: $_ENV['PASSWORD_PEPPERS'] ?? '',
             passwordActivePepperId: $_ENV['PASSWORD_ACTIVE_PEPPER_ID'] ?? '',
             passwordArgon2Options: $_ENV['PASSWORD_ARGON2_OPTIONS'] ?? '',
+            dbHost: $_ENV['DB_HOST'] ?? '127.0.0.1',
+            dbPort: $_ENV['DB_PORT'] ?? '3306',
+            dbName: $_ENV['DB_NAME'] ?? 'maatify-iam',
+            dbUser: $_ENV['DB_USER'] ?? 'root',
+            dbPassword: $_ENV['DB_PASS'] ?? 'root',
         );
     }
 

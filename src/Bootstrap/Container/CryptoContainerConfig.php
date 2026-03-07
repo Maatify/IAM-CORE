@@ -49,7 +49,7 @@ final class CryptoContainerConfig implements ContainerModule
 
         $container->set(
             CryptoContextProviderInterface::class,
-            fn() => new IAMCryptoContextProvider()
+            fn () => new IAMCryptoContextProvider()
         );
 
         $container->set(
