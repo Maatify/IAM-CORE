@@ -256,13 +256,26 @@ CREATE TABLE IF NOT EXISTS iam_sessions (
 
                                             PRIMARY KEY (id),
 
+    -- ensures active refresh tokens are unique
                                             UNIQUE KEY uq_iam_sessions_refresh_hash (refresh_token_hash),
 
+    -- session lookup by actor
                                             KEY idx_iam_sessions_actor (actor_id),
+
+    -- lookup sessions issued by a specific client
                                             KEY idx_iam_sessions_client (client_id),
+
+    -- used when revoking all actor sessions
                                             KEY idx_iam_sessions_actor_revoked (actor_id, revoked_at),
+
+    -- cleanup / expiration queries
                                             KEY idx_iam_sessions_expires_at (expires_at),
+
+    -- device-bound session lookup
                                             KEY idx_iam_sessions_device (device_id),
+
+    -- used for refresh token reuse detection
+                                            KEY idx_iam_sessions_prev_refresh_hash (prev_refresh_token_hash),
 
                                             CONSTRAINT fk_iam_sessions_actor
                                                 FOREIGN KEY (actor_id) REFERENCES iam_actors(id)
@@ -270,7 +283,15 @@ CREATE TABLE IF NOT EXISTS iam_sessions (
 
                                             CONSTRAINT fk_iam_sessions_client
                                                 FOREIGN KEY (client_id) REFERENCES iam_clients(id)
-                                                    ON UPDATE RESTRICT ON DELETE RESTRICT
+                                                    ON UPDATE RESTRICT ON DELETE RESTRICT,
+
+    -- ensures rotation metadata consistency
+                                            CONSTRAINT chk_iam_sessions_prev_refresh_pair
+                                                CHECK (
+                                                    (prev_refresh_token_hash IS NULL AND prev_refresh_expires_at IS NULL)
+                                                        OR
+                                                    (prev_refresh_token_hash IS NOT NULL AND prev_refresh_expires_at IS NOT NULL)
+                                                    )
 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -388,26 +409,30 @@ CREATE TABLE IF NOT EXISTS iam_client_signing_secrets (
  * 10) idempotency_keys
  *
  * - Prevents duplicate execution of non-idempotent requests
- * - Used by IdempotencyMiddleware
  * - Each key is scoped to a client
  *
  * Flow:
  *   1) First request inserts row with status = PROCESSING
- *   2) Other concurrent requests with same key wait for result
- *   3) When controller finishes → status = DONE
- *   4) Stored response is replayed safely
+ *   2) Row receives a processing lease (processing_expires_at)
+ *   3) If request crashes, lease expiration allows safe reclaim
+ *   4) When controller finishes → status = DONE
+ *   5) Stored response is replayed safely
+ *
+ * processing_expires_at
+ *   - Prevents permanent PROCESSING tombstones
+ *   - Allows reclaim of stale idempotency locks
  *
  * request_hash
  *   - SHA256 hash of canonical request payload
- *   - Prevents key reuse with different payload
  *
  * response_body
- *   - Stored JSON response for replay
+ *   - Stored structured response for replay
  *
  * status
  *   PROCESSING → request currently executing
  *   DONE       → response available for replay
  * =========================================================== */
+
 CREATE TABLE IF NOT EXISTS iam_idempotency_keys (
                                                     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 
@@ -421,11 +446,15 @@ CREATE TABLE IF NOT EXISTS iam_idempotency_keys (
                                                     response_body JSON NULL,
                                                     status_code INT NULL,
 
+    /* Lease expiration for PROCESSING lock */
+                                                    processing_expires_at DATETIME NULL,
+
                                                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
                                                     UNIQUE KEY uq_client_key (client_id, idempotency_key),
 
                                                     KEY idx_iam_idempotency_status (status),
+                                                    KEY idx_iam_idempotency_processing_expires (processing_expires_at),
 
                                                     CONSTRAINT fk_idempotency_client
                                                         FOREIGN KEY (client_id)

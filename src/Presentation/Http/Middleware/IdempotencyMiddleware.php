@@ -16,8 +16,6 @@ use Slim\Psr7\Response;
 final readonly class IdempotencyMiddleware
 {
     private const MAX_KEY_LENGTH = 128;
-    private const WAIT_ATTEMPTS = 10;
-    private const WAIT_USLEEP = 20_000; // 20ms → max wait ≈ 200ms
 
     public function __construct(
         private IdempotencyRepositoryInterface $repo,
@@ -69,7 +67,6 @@ final readonly class IdempotencyMiddleware
             json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
         );
 
-        // Step 1: try to claim ownership before executing controller
         $claimed = $this->repo->claimProcessing(
             $context->clientId,
             $key,
@@ -77,26 +74,31 @@ final readonly class IdempotencyMiddleware
         );
 
         if (!$claimed) {
-            return $this->waitForExistingResult(
+            return $this->replayExisting(
                 $context->clientId,
                 $key,
                 $requestHash
             );
         }
 
-        // Step 2: only the owner executes the controller once
         $response = $handler->handle($request);
 
         $responseBody = (string) $response->getBody();
 
-        // Restore body for downstream safety if seekable
         if ($response->getBody()->isSeekable()) {
             $response->getBody()->rewind();
         }
 
+        $compressed = gzcompress($responseBody, 6);
+
+        if ($compressed === false) {
+            throw new IdempotencyConflictException();
+        }
+
         $storedData = json_encode([
             'content_type' => $response->getHeaderLine('Content-Type'),
-            'body_base64'  => base64_encode($responseBody)
+            'body_base64'  => base64_encode($compressed),
+            'compressed'   => true
         ], JSON_THROW_ON_ERROR);
 
         $this->repo->markDone(
@@ -110,65 +112,65 @@ final readonly class IdempotencyMiddleware
         return $response;
     }
 
-    private function waitForExistingResult(
+    private function replayExisting(
         int $clientId,
         string $key,
         string $requestHash
     ): ResponseInterface {
 
-        for ($i = 0; $i < self::WAIT_ATTEMPTS; $i++) {
+        $existing = $this->repo->find($clientId, $key);
 
-            $existing = $this->repo->find($clientId, $key);
-
-            if ($existing === null) {
-                throw new IdempotencyConflictException();
-            }
-
-            if ($existing['request_hash'] !== $requestHash) {
-                throw new IdempotencyConflictException();
-            }
-
-            if ($existing['status'] === 'DONE') {
-
-                if ($existing['response_body'] === null) {
-                    throw new IdempotencyConflictException();
-                }
-
-                /** @var array{content_type: string, body_base64: string} $stored */
-                $stored = json_decode(
-                    $existing['response_body'],
-                    true,
-                    512,
-                    JSON_THROW_ON_ERROR
-                );
-
-                $replayResponse = new Response((int) $existing['status_code']);
-
-                if ($stored['content_type'] !== '') {
-                    $replayResponse = $replayResponse->withHeader(
-                        'Content-Type',
-                        $stored['content_type']
-                    );
-                }
-
-                $replayResponse = $replayResponse
-                    ->withHeader('Idempotent-Replayed', 'true');
-
-                $decoded = base64_decode($stored['body_base64'], true);
-
-                if ($decoded === false) {
-                    throw new IdempotencyConflictException();
-                }
-
-                $replayResponse->getBody()->write($decoded);
-
-                return $replayResponse;
-            }
-
-            usleep(self::WAIT_USLEEP);
+        if ($existing === null) {
+            throw new IdempotencyConflictException();
         }
 
-        // Still PROCESSING after bounded wait
-        throw new IdempotencyConflictException();
+        if ($existing['request_hash'] !== $requestHash) {
+            throw new IdempotencyConflictException();
+        }
+
+        if ($existing['status'] !== 'DONE') {
+            throw new IdempotencyConflictException();
+        }
+
+        if ($existing['response_body'] === null) {
+            throw new IdempotencyConflictException();
+        }
+
+        /** @var array{content_type:string,body_base64:string,compressed?:bool} $stored */
+        $stored = json_decode(
+            $existing['response_body'],
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $response = new Response((int) $existing['status_code']);
+
+        if ($stored['content_type'] !== '') {
+            $response = $response->withHeader(
+                'Content-Type',
+                $stored['content_type']
+            );
+        }
+
+        $response = $response->withHeader('Idempotent-Replayed', 'true');
+
+        $decoded = base64_decode($stored['body_base64'], true);
+
+        if ($decoded === false) {
+            throw new IdempotencyConflictException();
+        }
+
+        if (($stored['compressed'] ?? false) === true) {
+            $decoded = gzuncompress($decoded);
+
+            if ($decoded === false) {
+                throw new IdempotencyConflictException();
+            }
+        }
+
+        $response->getBody()->write($decoded);
+
+        return $response;
     }
 }

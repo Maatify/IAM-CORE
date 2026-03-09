@@ -9,13 +9,14 @@ use PDOException;
 
 final class PdoIdempotencyRepository extends AbstractPdoRepository implements IdempotencyRepositoryInterface
 {
+    private const PROCESSING_TTL_SECONDS = 30;
+
     /**
      * @return array{
      *     request_hash:string,
      *     status:string,
      *     response_body:string|null,
      *     status_code:int|null
-     *
      * }|null
      */
     public function find(int $clientId, string $key): ?array
@@ -57,12 +58,31 @@ final class PdoIdempotencyRepository extends AbstractPdoRepository implements Id
         string $key,
         string $requestHash
     ): bool {
+
         try {
+
             $stmt = $this->pdo->prepare(
                 '
                 INSERT INTO iam_idempotency_keys
-                (client_id, idempotency_key, request_hash, status, response_body, status_code)
-                VALUES (:client, :key, :hash, :status, NULL, NULL)
+                (
+                    client_id,
+                    idempotency_key,
+                    request_hash,
+                    status,
+                    response_body,
+                    status_code,
+                    processing_expires_at
+                )
+                VALUES
+                (
+                    :client,
+                    :key,
+                    :hash,
+                    :status,
+                    NULL,
+                    NULL,
+                    DATE_ADD(NOW(), INTERVAL :ttl SECOND)
+                )
                 '
             );
 
@@ -71,11 +91,37 @@ final class PdoIdempotencyRepository extends AbstractPdoRepository implements Id
                 'key'    => $key,
                 'hash'   => $requestHash,
                 'status' => 'PROCESSING',
+                'ttl'    => self::PROCESSING_TTL_SECONDS
             ]);
 
             return true;
+
         } catch (PDOException) {
-            return false;
+
+            // Attempt reclaim if existing PROCESSING lock expired
+
+            $stmt = $this->pdo->prepare(
+                '
+                UPDATE iam_idempotency_keys
+                SET
+                    request_hash = :hash,
+                    processing_expires_at = DATE_ADD(NOW(), INTERVAL :ttl SECOND)
+                WHERE
+                    client_id = :client
+                AND idempotency_key = :key
+                AND status = "PROCESSING"
+                AND processing_expires_at < NOW()
+                '
+            );
+
+            $stmt->execute([
+                'client' => $clientId,
+                'key'    => $key,
+                'hash'   => $requestHash,
+                'ttl'    => self::PROCESSING_TTL_SECONDS
+            ]);
+
+            return $stmt->rowCount() === 1;
         }
     }
 
@@ -86,13 +132,15 @@ final class PdoIdempotencyRepository extends AbstractPdoRepository implements Id
         int $status,
         string $responseBody
     ): void {
+
         $stmt = $this->pdo->prepare(
             '
             UPDATE iam_idempotency_keys
             SET
                 status = :row_status,
                 status_code = :status_code,
-                response_body = :response_body
+                response_body = :response_body,
+                processing_expires_at = NULL
             WHERE client_id = :client
             AND idempotency_key = :key
             AND request_hash = :hash
