@@ -16,14 +16,26 @@ declare(strict_types=1);
 namespace Maatify\Iam\Bootstrap\Container;
 
 use DI\Container;
+use Maatify\Iam\Application\Contract\TransactionManagerInterface;
 use Maatify\Iam\Bootstrap\Settings;
 use Maatify\Iam\Domain\Repository\ActorCredentialRepositoryInterface;
 use Maatify\Iam\Domain\Repository\ActorIdentifierRepositoryInterface;
 use Maatify\Iam\Domain\Repository\ActorRepositoryInterface;
+use Maatify\Iam\Domain\Repository\ClientNonceRepositoryInterface;
+use Maatify\Iam\Domain\Repository\ClientRepositoryInterface;
+use Maatify\Iam\Domain\Repository\ClientSecretRepositoryInterface;
+use Maatify\Iam\Domain\Repository\ClientSigningSecretRepositoryInterface;
+use Maatify\Iam\Domain\Repository\IdempotencyRepositoryInterface;
 use Maatify\Iam\Infrastructure\Database\PDOFactory;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoActorCredentialRepository;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoActorIdentifierRepository;
 use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoActorRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoClientNonceRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoClientRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoClientSecretRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoClientSigningSecretRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoIdempotencyRepository;
+use Maatify\Iam\Infrastructure\Persistence\MySQL\PdoTransactionManager;
 use PDO;
 
 class RepositoryContainerConfig implements ContainerModule
@@ -78,5 +90,46 @@ class RepositoryContainerConfig implements ContainerModule
                 return new PdoActorCredentialRepository($pdo);
             }
         );
+
+        $container->set(
+            ClientRepositoryInterface::class,
+            fn ($c) => new PdoClientRepository(
+                $c->get(PDO::class)
+            )
+        );
+
+        $container->set(
+            ClientSecretRepositoryInterface::class,
+            fn ($c) => new PdoClientSecretRepository(
+                $c->get(PDO::class)
+            )
+        );
+
+        $container->set(
+            ClientNonceRepositoryInterface::class,
+            fn ($c) => new PdoClientNonceRepository(
+                $c->get(PDO::class)
+            )
+        );
+
+        $container->set(
+            ClientSigningSecretRepositoryInterface::class,
+            fn ($c) => new PdoClientSigningSecretRepository(
+                $c->get(PDO::class)
+            )
+        );
+
+        $container->set(
+            TransactionManagerInterface::class,
+            fn ($c) => $c->get(PdoTransactionManager::class)
+        );
+
+        $container->set(
+            IdempotencyRepositoryInterface::class,
+            fn ($c) => new PdoIdempotencyRepository(
+                $c->get(PDO::class)
+            )
+        );
+
     }
 }

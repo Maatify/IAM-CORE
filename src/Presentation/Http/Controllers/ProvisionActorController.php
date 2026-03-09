@@ -18,6 +18,7 @@ namespace Maatify\Iam\Presentation\Http\Controllers;
 use Maatify\Iam\Application\Service\ProvisionActorService;
 use Maatify\Iam\Presentation\Http\Requests\ProvisionActorRequest;
 use Maatify\Iam\Presentation\Http\Response\JsonResponseFactory;
+use Maatify\Iam\Presentation\Http\Security\RequestContext;
 use Maatify\Iam\Schemas\ProvisionActorSchema;
 use Maatify\Validation\Guard\ValidationGuard;
 use Psr\Http\Message\ResponseInterface;
@@ -39,6 +40,14 @@ final readonly class ProvisionActorController
 
         /** @var array<string,mixed> $payload */
         $payload = (array) $request->getParsedBody();
+
+        $context = $request->getAttribute(RequestContext::class);
+
+        if (!$context instanceof RequestContext) {
+            throw new \RuntimeException('RequestContext missing');
+        }
+
+        $payload['tenant_id'] = $context->tenantId;
 
         /*
         |--------------------------------------------------

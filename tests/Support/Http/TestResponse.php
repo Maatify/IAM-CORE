@@ -11,7 +11,8 @@ final readonly class TestResponse
 {
     public function __construct(
         private ResponseInterface $response
-    ) {}
+    ) {
+    }
 
     public function assertStatus(int $status): self
     {

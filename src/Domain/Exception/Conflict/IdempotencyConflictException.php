@@ -1,0 +1,28 @@
+<?php
+
+/**
+ * @copyright   ©2026 Maatify.dev
+ * @Library     maatify/IAM-CORE
+ * @Project     maatify:IAM-CORE
+ * @author      Mohamed Abdulalim (megyptm) <mohamed@maatify.dev>
+ * @since       2026-03-09 02:33
+ * @see         https://www.maatify.dev Maatify.dev
+ * @link        https://github.com/Maatify/IAM-CORE view Project on GitHub
+ * @note        Distributed in the hope that it will be useful - WITHOUT WARRANTY.
+ */
+
+declare(strict_types=1);
+
+namespace Maatify\Iam\Domain\Exception\Conflict;
+
+use Maatify\Exceptions\Contracts\ErrorCodeInterface;
+use Maatify\Exceptions\Exception\Conflict\ConflictMaatifyException;
+use Maatify\Iam\Domain\Enum\IamErrorCodeEnum;
+
+final class IdempotencyConflictException extends ConflictMaatifyException
+{
+    protected function defaultErrorCode(): ErrorCodeInterface
+    {
+        return IamErrorCodeEnum::IDEMPOTENCY_CONFLICT;
+    }
+}

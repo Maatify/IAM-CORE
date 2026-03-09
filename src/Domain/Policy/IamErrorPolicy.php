@@ -74,20 +74,26 @@ final class IamErrorPolicy implements ErrorPolicyInterface
                 IamErrorCodeEnum::TOKEN_EXPIRED->getValue(),
                 IamErrorCodeEnum::REFRESH_TOKEN_REUSED->getValue(),
             ],
+
             'AUTHORIZATION' => [
                 IamErrorCodeEnum::ACTOR_SUSPENDED->getValue(),
                 IamErrorCodeEnum::TENANT_SUSPENDED->getValue(),
                 IamErrorCodeEnum::CLIENT_NOT_ALLOWED->getValue(),
             ],
+
             'NOT_FOUND' => [
                 IamErrorCodeEnum::ACTOR_NOT_FOUND->getValue(),
                 IamErrorCodeEnum::TENANT_NOT_FOUND->getValue(),
                 IamErrorCodeEnum::SESSION_NOT_FOUND->getValue(),
+                IamErrorCodeEnum::CLIENT_NOT_FOUND->getValue(), // ← added
             ],
+
             'CONFLICT' => [
                 IamErrorCodeEnum::ACTOR_ALREADY_EXISTS->getValue(),
                 IamErrorCodeEnum::SESSION_ALREADY_REVOKED->getValue(),
+                IamErrorCodeEnum::IDEMPOTENCY_CONFLICT->getValue(), // ← added
             ],
+
             'SYSTEM' => [
                 IamErrorCodeEnum::TOKEN_SIGNING_FAILED->getValue(),
                 IamErrorCodeEnum::CRYPTO_FAILURE->getValue(),

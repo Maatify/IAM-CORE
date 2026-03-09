@@ -26,6 +26,7 @@ final readonly class Settings
         public bool $debug,
         public string $version,
         public array $trustedIps,
+        public string $timezone,
 
         /* ─────────────────────────────
          * Crypto
@@ -61,6 +62,7 @@ final readonly class Settings
             debug  : filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOL),
             version: $_ENV['APP_VERSION'] ?? '1.0.0',
             trustedIps : $trustedIps,
+            timezone: $_ENV['APP_TIMEZONE'] ?? 'UTC',
             cryptoKeysJson: $_ENV['CRYPTO_KEYS'] ?? '[]',
             cryptoActiveKeyId: $_ENV['CRYPTO_ACTIVE_KEY_ID'] ?? 'v1',
             passwordPeppers: $_ENV['PASSWORD_PEPPERS'] ?? '',

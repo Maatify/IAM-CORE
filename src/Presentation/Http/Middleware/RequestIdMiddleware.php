@@ -41,6 +41,8 @@ final class RequestIdMiddleware implements MiddlewareInterface
 
         $response = $handler->handle($request);
 
-        return $response->withHeader('X-Request-Id', $internalId);
+        return $response
+            ->withHeader('X-Request-Id', $internalId)
+            ->withHeader('X-Server-Time', (string)time());
     }
 }

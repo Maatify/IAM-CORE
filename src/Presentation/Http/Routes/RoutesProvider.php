@@ -17,6 +17,8 @@ namespace Maatify\Iam\Presentation\Http\Routes;
 
 use Maatify\Iam\Presentation\Http\Controllers\HealthController;
 use Maatify\Iam\Presentation\Http\Controllers\VersionController;
+use Maatify\Iam\Presentation\Http\Middleware\ClientAuthMiddleware;
+use Maatify\Iam\Presentation\Http\Middleware\IdempotencyMiddleware;
 use Maatify\Iam\Presentation\Http\Middleware\TrustedNetworkMiddleware;
 use Psr\Container\ContainerInterface;
 use Slim\App;
@@ -38,6 +40,9 @@ final class RoutesProvider
                 '/actors',
                 \Maatify\Iam\Presentation\Http\Controllers\ProvisionActorController::class
             );
-        })->add(TrustedNetworkMiddleware::class);
+        })
+            ->add(IdempotencyMiddleware::class)
+            ->add(ClientAuthMiddleware::class)
+            ->add(TrustedNetworkMiddleware::class);
     }
 }

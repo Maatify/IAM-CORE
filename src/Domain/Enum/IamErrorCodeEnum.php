@@ -29,12 +29,14 @@ enum IamErrorCodeEnum: string implements ErrorCodeInterface
     case ACTOR_NOT_FOUND = 'ACTOR_NOT_FOUND';
     case TENANT_NOT_FOUND = 'TENANT_NOT_FOUND';
     case SESSION_NOT_FOUND = 'SESSION_NOT_FOUND';
+    case CLIENT_NOT_FOUND = 'CLIENT_NOT_FOUND';
 
     // ================================
     // CONFLICT (409)
     // ================================
     case ACTOR_ALREADY_EXISTS = 'ACTOR_ALREADY_EXISTS';
     case SESSION_ALREADY_REVOKED = 'SESSION_ALREADY_REVOKED';
+    case IDEMPOTENCY_CONFLICT = 'IDEMPOTENCY_CONFLICT';
 
     // ================================
     // SYSTEM (500)

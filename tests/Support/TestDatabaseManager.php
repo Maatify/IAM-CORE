@@ -86,27 +86,37 @@ final class TestDatabaseManager
 
     public static function truncateAll(): void
     {
-        // Ensure schema exists
         self::migrate();
 
         $pdo = self::connection();
 
-        // Leaf → Root (respect FK)
         $tables = [
+
+            'iam_idempotency_keys',
+            'iam_client_request_nonces',
+
+//            'iam_client_signing_secrets',
+//            'iam_client_secrets',
+
             'iam_sessions',
+
             'iam_actor_credentials',
+
             'iam_actor_identifiers',
             'iam_actors',
-            'iam_clients',
+
+//            'iam_clients',
             'iam_tenants',
         ];
 
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+        $pdo->exec('SET UNIQUE_CHECKS=0');
 
         foreach ($tables as $table) {
             $pdo->exec('TRUNCATE TABLE `' . $table . '`');
         }
 
+        $pdo->exec('SET UNIQUE_CHECKS=1');
         $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
     }
 }

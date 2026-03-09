@@ -273,3 +273,165 @@ CREATE TABLE IF NOT EXISTS iam_sessions (
                                                     ON UPDATE RESTRICT ON DELETE RESTRICT
 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* ===========================================================
+ * 7) client_secrets
+ *
+ * - Stores hashed secrets for confidential/internal clients
+ * - Supports secret rotation by allowing multiple active secrets
+ * - Raw secret MUST NEVER be stored
+ * =========================================================== */
+
+CREATE TABLE IF NOT EXISTS iam_client_secrets (
+                                                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
+    -- Owning client
+                                                  client_id BIGINT UNSIGNED NOT NULL,
+
+    -- Password hash of client secret
+                                                  secret_hash VARCHAR(255) NOT NULL,
+
+    -- Creation timestamp
+                                                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                                  PRIMARY KEY (id),
+
+                                                  KEY idx_iam_client_secrets_client_id (client_id),
+
+                                                  CONSTRAINT fk_iam_client_secrets_client
+                                                      FOREIGN KEY (client_id)
+                                                          REFERENCES iam_clients(id)
+                                                          ON UPDATE RESTRICT
+                                                          ON DELETE CASCADE
+
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+/* ===========================================================
+ * 8) client_request_nonces
+ *
+ * - Single-use nonce store for HMAC replay protection
+ * - Each nonce is bound to a client and expires quickly
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_client_request_nonces (
+                                                         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                                         client_id BIGINT UNSIGNED NOT NULL,
+                                                         nonce VARCHAR(128) NOT NULL,
+                                                         expires_at DATETIME NOT NULL,
+                                                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                                         PRIMARY KEY (id),
+
+                                                         UNIQUE KEY uq_iam_client_request_nonces_client_nonce (client_id, nonce),
+                                                         KEY idx_iam_client_request_nonces_expires_at (expires_at),
+
+                                                         CONSTRAINT fk_iam_client_request_nonces_client
+                                                             FOREIGN KEY (client_id) REFERENCES iam_clients(id)
+                                                                 ON UPDATE RESTRICT ON DELETE CASCADE
+
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* ===========================================================
+ * 9) client_signing_secrets
+ *
+ * - Retrievable encrypted secrets used for HMAC request signing
+ * - MUST be encrypted at rest
+ * - Raw value MUST NEVER be logged
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_client_signing_secrets (
+                                                          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                                                          client_id BIGINT UNSIGNED NOT NULL,
+
+                                                          cipher VARBINARY(512) NOT NULL,
+                                                          iv VARBINARY(32) NOT NULL,
+                                                          tag VARBINARY(32) NOT NULL,
+
+                                                          key_id VARCHAR(64) NOT NULL,
+                                                          algorithm VARCHAR(32) NOT NULL DEFAULT 'AES-256-GCM',
+
+                                                          status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+
+                                                          expires_at DATETIME NULL,
+                                                          revoked_at DATETIME NULL,
+
+                                                          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                                          PRIMARY KEY (id),
+
+    -- lookup by client
+                                                          KEY idx_iam_client_signing_secrets_client_id (client_id),
+
+    -- fast lookup for authentication
+                                                          KEY idx_iam_client_signing_secrets_active (client_id, status),
+
+    -- expiration cleanup
+                                                          KEY idx_iam_client_signing_secrets_expires (expires_at),
+
+                                                          CONSTRAINT fk_iam_client_signing_secrets_client
+                                                              FOREIGN KEY (client_id)
+                                                                  REFERENCES iam_clients(id)
+                                                                  ON UPDATE RESTRICT
+                                                                  ON DELETE CASCADE,
+
+                                                          CONSTRAINT chk_iam_client_signing_secrets_status
+                                                              CHECK (status IN ('ACTIVE','REVOKED')),
+
+                                                          CONSTRAINT chk_iam_client_signing_secrets_algorithm
+                                                              CHECK (algorithm IN ('AES-256-GCM'))
+
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+/* ===========================================================
+ * 10) idempotency_keys
+ *
+ * - Prevents duplicate execution of non-idempotent requests
+ * - Used by IdempotencyMiddleware
+ * - Each key is scoped to a client
+ *
+ * Flow:
+ *   1) First request inserts row with status = PROCESSING
+ *   2) Other concurrent requests with same key wait for result
+ *   3) When controller finishes → status = DONE
+ *   4) Stored response is replayed safely
+ *
+ * request_hash
+ *   - SHA256 hash of canonical request payload
+ *   - Prevents key reuse with different payload
+ *
+ * response_body
+ *   - Stored JSON response for replay
+ *
+ * status
+ *   PROCESSING → request currently executing
+ *   DONE       → response available for replay
+ * =========================================================== */
+CREATE TABLE IF NOT EXISTS iam_idempotency_keys (
+                                                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+                                                    client_id BIGINT UNSIGNED NOT NULL,
+                                                    idempotency_key VARCHAR(128) NOT NULL,
+
+                                                    request_hash CHAR(64) NOT NULL,
+
+                                                    status VARCHAR(16) NOT NULL DEFAULT 'PROCESSING',
+
+                                                    response_body JSON NULL,
+                                                    status_code INT NULL,
+
+                                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                                                    UNIQUE KEY uq_client_key (client_id, idempotency_key),
+
+                                                    KEY idx_iam_idempotency_status (status),
+
+                                                    CONSTRAINT fk_idempotency_client
+                                                        FOREIGN KEY (client_id)
+                                                            REFERENCES iam_clients(id)
+                                                            ON DELETE CASCADE,
+
+                                                    CONSTRAINT chk_iam_idempotency_status
+                                                        CHECK (status IN ('PROCESSING', 'DONE'))
+);

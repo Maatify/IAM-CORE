@@ -35,17 +35,19 @@ final class AppFactory
 
         $app = SlimAppFactory::create();
 
+        /** @var RequestIdMiddleware $requestId */
+        $requestId = $container->get(RequestIdMiddleware::class);
+        $app->add($requestId);
+
         // 1) Routing
         $app->addRoutingMiddleware();
+
+        $app->add(\Maatify\Iam\Presentation\Http\Middleware\ErrorLoggingMiddleware::class);
 
         $app->addBodyParsingMiddleware();
 
         // Remove trailing slash (API best practice)
         $app->add(new TrailingSlash(false));
-
-        /** @var RequestIdMiddleware $requestId */
-        $requestId = $container->get(RequestIdMiddleware::class);
-        $app->add($requestId);
 
         // Exception Middleware
         /** @var IamExceptionMiddleware $exceptionMw */

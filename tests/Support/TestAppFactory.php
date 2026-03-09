@@ -24,6 +24,9 @@ final class TestAppFactory
 
         $app->addBodyParsingMiddleware();
 
+        // Inject fake request context for tests
+        $app->add(new FakeRequestContextMiddleware());
+
         $service = TestServiceFactory::provisionActorService($pdo);
 
         $validationGuard = new ValidationGuard(

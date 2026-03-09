@@ -19,12 +19,21 @@ use Maatify\Iam\Application\Adapter\PasswordPepperEnvAdapter;
 use Maatify\Iam\Bootstrap\Settings;
 use Maatify\Iam\Domain\Repository\ActorCredentialRepositoryInterface;
 use Maatify\Iam\Domain\Security\Credential\CredentialStrategyInterface;
+use Maatify\Iam\Domain\Security\Credential\CredentialStrategyResolver;
 use Maatify\Iam\Domain\Security\Credential\PasswordCredentialStrategy;
+use Maatify\Iam\Domain\Security\Lookup\EnvLookupSecretProvider;
+use Maatify\Iam\Domain\Security\Lookup\LookupHmac;
+use Maatify\Iam\Domain\Security\Lookup\LookupHmacInterface;
+use Maatify\Iam\Domain\Security\Lookup\LookupSecretProviderInterface;
 use Maatify\Iam\Domain\Security\Password\PasswordPepperRing;
 use Maatify\Iam\Domain\Security\Password\PasswordPepperRingConfig;
 use Maatify\Iam\Domain\Service\PasswordService;
 use DI\Container;
+use Maatify\PsrLogger\LoggerFactory;
+use Maatify\Validation\Contracts\ValidatorInterface;
+use Maatify\Validation\Validator\RespectValidator;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 final class SecurityContainerConfig implements ContainerModule
 {
@@ -69,6 +78,49 @@ final class SecurityContainerConfig implements ContainerModule
                 /** @var PasswordService $passwordService */
                 $passwordService = $c->get(PasswordService::class);
                 return new PasswordCredentialStrategy($repo, $passwordService);
+            }
+        );
+
+        $container->set(
+            CredentialStrategyResolver::class,
+            fn ($c) => new CredentialStrategyResolver(
+                $c->get(PasswordCredentialStrategy::class)
+            )
+        );
+
+        $container->set(
+            LookupHmacInterface::class,
+            fn ($c) => new LookupHmac(
+                $c->get(LookupSecretProviderInterface::class)
+            )
+        );
+
+        $container->set(
+            LookupSecretProviderInterface::class,
+            fn () => new EnvLookupSecretProvider(
+                (string)($_ENV['EMAIL_BLIND_INDEX_KEY'] ?? '')
+            )
+        );
+
+        $container->set(
+            ValidatorInterface::class,
+            fn ($c) => $c->get(RespectValidator::class)
+        );
+
+        $container->set(
+            LoggerInterface::class,
+            fn () => LoggerFactory::create('slim/app')
+        );
+
+        $container->set(
+            \Maatify\SharedCommon\Contracts\ClockInterface::class,
+            function () use ($settings) {
+                try {
+                    $timezone = new \DateTimeZone($settings->timezone);
+                } catch (\Exception $e) {
+                    throw new \RuntimeException('Invalid APP_TIMEZONE: ' . $settings->timezone, 0, $e);
+                }
+                return new \Maatify\SharedCommon\Infrastructure\SystemClock($timezone);
             }
         );
     }
