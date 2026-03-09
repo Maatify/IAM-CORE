@@ -9,5 +9,5 @@ interface LookupHmacInterface
     /**
      * Returns raw 32-byte binary string.
      */
-    public function hash(string $canonical): string;
+    public function hash(string $canonical, int $tenantId): string;
 }

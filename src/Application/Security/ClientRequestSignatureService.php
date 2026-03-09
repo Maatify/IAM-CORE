@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Maatify\Iam\Application\Security;
 
-final class ClientRequestSignatureService
+final readonly class ClientRequestSignatureService
 {
+    public function __construct(
+        private JsonCanonicalizer $canonicalizer
+    ) {
+    }
+
     public function buildPayload(
         string $clientKey,
         string $method,
@@ -16,7 +21,7 @@ final class ClientRequestSignatureService
         string $body
     ): string {
 
-        $normalizedBody = $this->canonicalizeJson($body);
+        $normalizedBody = $this->canonicalizer->canonicalize($body);
 
         $bodyHash = hash('sha256', $normalizedBody);
 
@@ -44,48 +49,5 @@ final class ClientRequestSignatureService
     public function verify(string $provided, string $expected): bool
     {
         return hash_equals($expected, $provided);
-    }
-
-    private function canonicalizeJson(string $body): string
-    {
-        $decoded = json_decode($body, true);
-
-        if (!is_array($decoded)) {
-            return $body;
-        }
-
-        $this->ksortRecursive($decoded);
-
-        return json_encode(
-            $decoded,
-            JSON_UNESCAPED_SLASHES
-            | JSON_UNESCAPED_UNICODE
-            | JSON_THROW_ON_ERROR
-            | JSON_PRESERVE_ZERO_FRACTION
-        );
-    }
-
-    /**
-     * @param array<string,mixed> $array
-     */
-    private function ksortRecursive(array &$array): void
-    {
-        if ($this->isAssoc($array)) {
-            ksort($array);
-        }
-
-        foreach ($array as &$value) {
-            if (is_array($value)) {
-                $this->ksortRecursive($value);
-            }
-        }
-    }
-
-    /**
-     * @param array<string,mixed> $array
-     */
-    private function isAssoc(array $array): bool
-    {
-        return array_keys($array) !== range(0, count($array) - 1);
     }
 }
