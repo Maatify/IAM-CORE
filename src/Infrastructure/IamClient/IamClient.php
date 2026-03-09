@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maatify\Iam\Infrastructure\IamClient;
 
 use Maatify\Iam\Application\Security\ClientRequestSignatureService;
+use Maatify\Iam\Application\Security\JsonCanonicalizer;
 use RuntimeException;
 
 final class IamClient
@@ -16,7 +17,7 @@ final class IamClient
         private readonly string $secret,
         ?ClientRequestSignatureService $signatureService = null
     ) {
-        $this->signatureService = $signatureService ?? new ClientRequestSignatureService();
+        $this->signatureService = $signatureService ?? new ClientRequestSignatureService(new JsonCanonicalizer());
     }
 
     /**

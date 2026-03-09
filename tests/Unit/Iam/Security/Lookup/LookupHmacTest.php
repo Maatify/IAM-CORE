@@ -28,7 +28,7 @@ final class LookupHmacTest extends TestCase
     {
         $hmac = new LookupHmac($this->provider('secret'));
 
-        $hash = $hmac->hash('test@example.com');
+        $hash = $hmac->hash('test@example.com', 1);
 
         $this->assertSame(32, strlen($hash));
     }
@@ -37,8 +37,8 @@ final class LookupHmacTest extends TestCase
     {
         $hmac = new LookupHmac($this->provider('secret'));
 
-        $a = $hmac->hash('value');
-        $b = $hmac->hash('value');
+        $a = $hmac->hash('value', 1);
+        $b = $hmac->hash('value', 1);
 
         $this->assertSame($a, $b);
     }
@@ -47,8 +47,8 @@ final class LookupHmacTest extends TestCase
     {
         $hmac = new LookupHmac($this->provider('secret'));
 
-        $a = $hmac->hash('a');
-        $b = $hmac->hash('b');
+        $a = $hmac->hash('a', 1);
+        $b = $hmac->hash('b', 1);
 
         $this->assertNotSame($a, $b);
     }
@@ -59,8 +59,18 @@ final class LookupHmacTest extends TestCase
         $hmac2 = new LookupHmac($this->provider('secret2'));
 
         $this->assertNotSame(
-            $hmac1->hash('value'),
-            $hmac2->hash('value')
+            $hmac1->hash('value', 1),
+            $hmac2->hash('value', 1)
+        );
+    }
+
+    public function test_different_tenant_different_hash(): void
+    {
+        $hmac = new LookupHmac($this->provider('secret'));
+
+        $this->assertNotSame(
+            $hmac->hash('value', 1),
+            $hmac->hash('value', 2)
         );
     }
 
@@ -69,6 +79,6 @@ final class LookupHmacTest extends TestCase
         $this->expectException(CryptoFailureException::class);
 
         $hmac = new LookupHmac($this->provider(''));
-        $hmac->hash('value');
+        $hmac->hash('value', 1);
     }
 }

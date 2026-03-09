@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Maatify\Iam\Presentation\Http\Middleware;
 
+use Maatify\Iam\Application\Security\JsonCanonicalizer;
 use Maatify\Iam\Domain\Exception\Conflict\IdempotencyConflictException;
 use Maatify\Iam\Domain\Repository\IdempotencyRepositoryInterface;
-use Maatify\Iam\Presentation\Http\Response\JsonResponseFactory;
 use Maatify\Iam\Presentation\Http\Security\RequestContext;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -16,12 +16,12 @@ use Slim\Psr7\Response;
 final readonly class IdempotencyMiddleware
 {
     private const MAX_KEY_LENGTH = 128;
-    private const WAIT_ATTEMPTS = 20;
-    private const WAIT_USLEEP = 50_000; // 50ms => total ~1s
+    private const WAIT_ATTEMPTS = 10;
+    private const WAIT_USLEEP = 20_000; // 20ms → max wait ≈ 200ms
 
     public function __construct(
         private IdempotencyRepositoryInterface $repo,
-        private JsonResponseFactory $json
+        private JsonCanonicalizer $canonicalizer
     ) {
     }
 
@@ -55,11 +55,13 @@ final readonly class IdempotencyMiddleware
             $request->getBody()->rewind();
         }
 
+        $canonicalBody = $this->canonicalizer->canonicalize($body);
+
         $payload = [
             'method' => strtoupper($request->getMethod()),
             'path'   => $request->getUri()->getPath(),
             'query'  => $request->getUri()->getQuery(),
-            'body'   => $body,
+            'body'   => $canonicalBody,
         ];
 
         $requestHash = hash(
@@ -92,12 +94,17 @@ final readonly class IdempotencyMiddleware
             $response->getBody()->rewind();
         }
 
+        $storedData = json_encode([
+            'content_type' => $response->getHeaderLine('Content-Type'),
+            'body_base64'  => base64_encode($responseBody)
+        ], JSON_THROW_ON_ERROR);
+
         $this->repo->markDone(
             $context->clientId,
             $key,
             $requestHash,
             $response->getStatusCode(),
-            $responseBody
+            $storedData
         );
 
         return $response;
@@ -108,41 +115,60 @@ final readonly class IdempotencyMiddleware
         string $key,
         string $requestHash
     ): ResponseInterface {
+
         for ($i = 0; $i < self::WAIT_ATTEMPTS; $i++) {
+
             $existing = $this->repo->find($clientId, $key);
 
-            if ($existing !== null) {
-                if ($existing['request_hash'] !== $requestHash) {
+            if ($existing === null) {
+                throw new IdempotencyConflictException();
+            }
+
+            if ($existing['request_hash'] !== $requestHash) {
+                throw new IdempotencyConflictException();
+            }
+
+            if ($existing['status'] === 'DONE') {
+
+                if ($existing['response_body'] === null) {
                     throw new IdempotencyConflictException();
                 }
 
-                if ($existing['status'] === 'DONE') {
+                /** @var array{content_type: string, body_base64: string} $stored */
+                $stored = json_decode(
+                    $existing['response_body'],
+                    true,
+                    512,
+                    JSON_THROW_ON_ERROR
+                );
 
-                    if ($existing['response_body'] === null) {
-                        throw new IdempotencyConflictException();
-                    }
+                $replayResponse = new Response((int) $existing['status_code']);
 
-                    /** @var array<string,mixed> $body */
-                    $body = json_decode(
-                        $existing['response_body'],
-                        true,
-                        512,
-                        JSON_THROW_ON_ERROR
+                if ($stored['content_type'] !== '') {
+                    $replayResponse = $replayResponse->withHeader(
+                        'Content-Type',
+                        $stored['content_type']
                     );
-
-                    return $this->json
-                        ->data(
-                            new Response(),
-                            $body,
-                            (int) $existing['status_code']
-                        )
-                        ->withHeader('Idempotent-Replayed', 'true');
                 }
+
+                $replayResponse = $replayResponse
+                    ->withHeader('Idempotent-Replayed', 'true');
+
+                $decoded = base64_decode($stored['body_base64'], true);
+
+                if ($decoded === false) {
+                    throw new IdempotencyConflictException();
+                }
+
+                $replayResponse->getBody()->write($decoded);
+
+                return $replayResponse;
             }
 
             usleep(self::WAIT_USLEEP);
         }
 
+        // Still PROCESSING after bounded wait
         throw new IdempotencyConflictException();
     }
 }
