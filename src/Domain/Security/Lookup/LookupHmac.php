@@ -13,7 +13,7 @@ final readonly class LookupHmac implements LookupHmacInterface
     ) {
     }
 
-    public function hash(string $canonical): string
+    public function hash(string $canonical, int $tenantId): string
     {
         $secret = $this->secretProvider->getSecret();
 
@@ -23,7 +23,7 @@ final readonly class LookupHmac implements LookupHmacInterface
 
         return hash_hmac(
             'sha256',
-            $canonical,
+            $tenantId . ':' . $canonical,
             $secret,
             true // raw binary
         );

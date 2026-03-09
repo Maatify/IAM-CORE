@@ -44,7 +44,7 @@ final readonly class IdentifierService
             $dto->identifier
         );
 
-        $lookupHash = $this->lookupHmac->hash($canonical);
+        $lookupHash = $this->lookupHmac->hash($canonical, $tenantId);
 
         $context = $this->contextResolver->resolve($dto->identifierType);
 

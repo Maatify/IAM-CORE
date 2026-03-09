@@ -23,13 +23,6 @@ final class PdoClientNonceRepository extends AbstractPdoRepository implements Cl
 {
     public function storeIfUnused(int $clientId, string $nonce, DateTimeImmutable $expiresAt): bool
     {
-        $this->pdo->exec('
-        DELETE FROM iam_client_request_nonces
-        WHERE expires_at < NOW()
-        ORDER BY expires_at
-        LIMIT 100
-    ');
-
         try {
 
             $stmt = $this->pdo->prepare(

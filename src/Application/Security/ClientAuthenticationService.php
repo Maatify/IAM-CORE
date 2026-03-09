@@ -28,10 +28,8 @@ final readonly class ClientAuthenticationService
         if (! $client) {
             password_verify(
                 $secret,
-                '$2y$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalid'
+                '$argon2id$v=19$m=65536,t=4,p=1$OG0zbkpKb1J1cVJoRGI4Uw$9uuJRV87hluQeatzjijHIC4Nx9vG1ssQOvgS3lvGr6E'
             );
-
-            usleep(5000);
 
             throw new UnauthorizedMaatifyException();
         }
