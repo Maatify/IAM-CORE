@@ -10,7 +10,9 @@
     "ext-openssl": "*",
     "ext-pdo": "*",
     "ext-sodium": "*",
+    "ext-zlib": "*",
     "firebase/php-jwt": "^7.0",
+    "maatify/crypto": "^1.0",
     "maatify/exceptions": "^1.1",
     "maatify/psr-logger": "^1.0",
     "maatify/validation": "^1.0",
@@ -23,8 +25,7 @@
     "respect/validation": "^2.4",
     "slim/psr7": "^1.8",
     "slim/slim": "^4.15",
-    "vlucas/phpdotenv": "^5.6",
-    "ext-zlib": "*"
+    "vlucas/phpdotenv": "^5.6"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.94",
@@ -35,7 +36,6 @@
     "psr-4": {
       "Maatify\\Iam\\": "src/",
       "Maatify\\SharedCommon\\": "Modules/SharedCommon/",
-      "Maatify\\Crypto\\": "Modules/Crypto",
       "Maatify\\EmailDelivery\\": "Modules/EmailDelivery"
     }
   },
